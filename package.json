@@ -1,0 +1,14 @@
+{
+  "name": "smtq",
+  "version": "0.0.0",
+  "description": "Queue engine test",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "queue"
+  ],
+  "author": "Ugnius",
+  "license": "ISC"
+}

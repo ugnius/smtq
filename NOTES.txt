@@ -1,0 +1,47 @@
+Seemoto queue engine
+
+smtq
+
+requirements:
++multiple named queues.
++queues have corelation string.
++there can be many producers and consumers for queue.
++only one message from queue-correlation processed at a time.
++messages come with timestamp
+messages should be given to consumers ordered by the oldest
+some queues require that queue-correlation process should be halted for n seconds if message is received. For ordering process in case messages ar out of order.
+
++messages should be given to consumers in backpressure subscribe fashion.
++persistent connection for high rquest per second count.
+needs scalability over cores and machines.
+needs message persistency. In case of process shutdown in memory data should be kept safe.
+needs availability. one process or computer fail should not interfere with queue work.
+
+deliver at least once
+
+
+FIX: partitions are selected by name priority
+
+
+
+Raw TCP server.
+
+message types:
+	ENQUEUE - put message to queue (producer -> queue)
+		queue name, correlation string, timestamp, message.
+	ENQUEUE_ACK - acknowledge enqueue was success (queue -> producer)
+	ERROR - problem with queue or request (queue -> producer)
+		error message.
+
+	DEQUEUE - get message from queue (consumer -> queue)
+		queue name
+	MESSAGE - message to consumer
+		message
+	DEQUEUE_OK - confirm message was received (consumer -> queue)
+	DEQUEUE_FAIL - problem with message parsing (consumer -> queue)
+		error message
+
+
+
+	LOCK_QUEUE - lock queue-correlation from processing 
+	UNLOCK_QUEUE 
