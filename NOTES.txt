@@ -8,14 +8,15 @@ requirements:
 +there can be many producers and consumers for queue.
 +only one message from queue-correlation processed at a time.
 +messages come with timestamp
-messages should be given to consumers ordered by the oldest
-some queues require that queue-correlation process should be halted for n seconds if message is received. For ordering process in case messages ar out of order.
++messages should be given to consumers ordered by the oldest
++some queues require that queue-correlation process should be halted for n seconds if message is received. For ordering process in case messages ar out of order.
 
 +messages should be given to consumers in backpressure subscribe fashion.
 +persistent connection for high rquest per second count.
 needs scalability over cores and machines.
 needs message persistency. In case of process shutdown in memory data should be kept safe.
 needs availability. one process or computer fail should not interfere with queue work.
+single connection per thread with multiple numbered streams
 
 deliver at least once
 
