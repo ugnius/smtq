@@ -79,7 +79,16 @@ Client.prototype._onFrame = function (data) {
 		throw new Error('Unknown opCode :' + message.opCode);
 	}
 
-}
+};
+
+
+Client.prototype._nextStream = function () {
+	this._stream++;
+	if (this._stream > 65535) {
+		this._stream = 0;
+	}
+	return this._stream;
+};
 
 
 Client.prototype.enqueue = function (app, partition, timestamp, message, callback) {
@@ -90,7 +99,7 @@ Client.prototype.enqueue = function (app, partition, timestamp, message, callbac
 
 	var message = {
 		opCode: 1,
-		stream: this._stream++,
+		stream: this._nextStream(),
 		app: app,
 		partition: partition,
 		timestamp: timestamp,
@@ -112,7 +121,7 @@ Client.prototype.dequeue = function (app, callback) {
 
 	var message = {
 		opCode: 3,
-		stream: this._stream++,
+		stream: this._nextStream(),
 		app: app
 	};
 

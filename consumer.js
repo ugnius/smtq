@@ -12,7 +12,7 @@ smtq.connect(function (error) {
 	console.log('connected to queue');
 
 	recursive(1, deque);
-	recursive(2, deque);
+	//recursive(2, deque);
 
 
 });
@@ -27,19 +27,19 @@ var recursive = function (arg, fn) {
 
 var deque = function (arg, callback2) {
 
-	console.log(arg + ' dequeue');
+	//console.log(arg + ' dequeue');
 
 	smtq.dequeue('app1', function (error, message, callback) {
 		if (error) { throw error; }
 
-		console.log(arg + ' dequed: ' + message.partition + '|' + message.content + ' ' + message.stream);
+		//console.log(arg + ' dequed: ' + message.partition + '|' + message.content + ' ' + message.stream);
 
 		//callback(new Error('HUR DUR'));
 
-		setTimeout(function () {
+		setImmediate(function () {
 			callback(null);
 			callback2(null);
-		}, 1);
+		});
 
 	});
 };

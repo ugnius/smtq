@@ -65,6 +65,10 @@ Queue.prototype.serveQueue = function () {
 var Partition = function (name, queue) {
 	this.name = name;
 	this.messages = [];
+
+	this.first = null;
+	this.last = null;
+
 	this.queue = queue;
 	this.busy = false;
 
@@ -74,22 +78,41 @@ var Partition = function (name, queue) {
 
 Partition.prototype.isActive = function()
 {
-	return this.messages.length > 0 && !this.busy && !this.freshTimeout;
+	return this.first !== null && !this.busy && !this.freshTimeout;
 }
 
 Partition.prototype.enqueue = function (message) {
 
-	var i;
-	for (i = this.messages.length - 1; i >= 0; i--) {
-		if (this.messages[i].timestamp <= message.timestamp) {
-			break;
+	var partition = this;
+
+	var m = {
+		timestamp: message.timestamp,
+		content: message.message,
+		next: null
+	};
+
+	if (partition.first === null) {
+		partition.first = m;
+		partition.last = m;
+	}
+	else {
+		if (partition.first.timestamp > m.timestamp) {
+			m.next = partition.first;
+			partition.first = m;
+		}
+		else {
+			var i = partition.first;
+			while (i.next !== null && i.next.timestamp <= m.timestamp) {
+				i = i.next;
+			}
+			m.next = i.next;
+			i.next = m;
+
+			if (partition.last === i) {
+				partition.last = m;
+			}
 		}
 	}
-
-	this.messages.splice(i + 1, 0, {
-		timestamp: message.timestamp,
-		content: message.message
-	});
 
 	if (this.freshTimeout) {
 		clearTimeout(this.freshTimeout);
@@ -109,7 +132,7 @@ Partition.prototype.dequeue = function (callback) {
 	var partition = this;
 	partition.busy = true;
 
-	var m = partition.messages[0];
+	var m = partition.first;
 
 	callback(null, {
 		partition: partition.name,
@@ -122,7 +145,23 @@ Partition.prototype.dequeue = function (callback) {
 			}
 		}
 		else {
-			partition.messages.splice(partition.messages.indexOf(m), 1);
+			if (partition.first === m) {
+				partition.first = m.next;
+				if (partition.last === m) {
+					partition.last = null;
+				}
+			}
+			else {
+				var i = partition.first;
+				while (i.next !== m) {
+					i = i.next;
+				}
+
+				i.next = m.next;
+				if (partition.last === m) {
+					partition.last = i;
+				}
+			}
 		}
 
 		partition.busy = false;
@@ -208,7 +247,6 @@ var onConnection = function (connection) {
 	};
 
 	connection.on('data', function (chunk) {
-		console.log(chunk.toString('hex'));
 
 		if (oldChunk) {
 			chunk = Buffer.concat([oldChunk, chunk]);
