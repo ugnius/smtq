@@ -99,9 +99,7 @@ Partition.prototype.enqueue = function (message) {
 
 	partition.freshTimeout = setTimeout(function () {
 		partition.freshTimeout = null;
-
 		setImmediate(partition.queue.serveQueue());
-
 	}, 1000);
 
 };
@@ -114,18 +112,20 @@ Partition.prototype.dequeue = function (callback) {
 	var m = partition.messages[0];
 
 	callback(null, {
-		partition: this.name,
+		partition: partition.name,
 		content: m.content
 	}, function (error) {
 		if (error) {
-			console.log(error);
+			if (error.message === 'Connection closed') {
+			} else {
+				console.log(error);
+			}
 		}
 		else {
 			partition.messages.splice(partition.messages.indexOf(m), 1);
 		}
 
 		partition.busy = false;
-
 		partition.queue.serveQueue();
 	});
 
@@ -134,19 +134,13 @@ Partition.prototype.dequeue = function (callback) {
 
 
 var onConnection = function (connection) {
+	var _callbacks = {};
+	var oldChunk = null;
+	var closed = false;
 
-	//console.log('new connection');
+	var onFrame = function (data) {
 
-	var _callback = null;
-
-	connection.on('data', function (data) {
-
-		//console.log(data.toString('hex'));
-
-		var length = data.readUInt32BE(0);
-
-		var message = serializer.deserialize(data.slice(4, length + 4));
-		//console.log(message);
+		var message = serializer.deserialize(data);
 
 		if (message.opCode === 1) {
 
@@ -158,7 +152,10 @@ var onConnection = function (connection) {
 
 			queue.enqueue(message);
 
-			var response = { opCode: 2 };
+			var response = {
+				opCode: 2,
+				stream: message.stream,
+			};
 			var frame = serializer.serialize(response);
 
 			connection.write(frame);
@@ -173,6 +170,9 @@ var onConnection = function (connection) {
 			}
 
 			queue.dequeue(function (error, m, callback) {
+				if (closed) {
+					return callback(new Error('Connection closed'));
+				}
 
 				if (error) {
 					throw error;
@@ -180,47 +180,76 @@ var onConnection = function (connection) {
 
 				var response = {
 					opCode: 4,
+					stream: message.stream,
 					app: message.app,
 					partition: m.partition,
 					content: m.content,
 				};
 				var frame = serializer.serialize(response);
 
-				_callback = callback;
+				_callbacks[message.stream] = callback;
 				connection.write(frame);
-
 			});
 		}
 		else if (message.opCode === 5) {
 
-			var cb = _callback;
-			_callback = null;
-			cb(null);
+			_callbacks[message.stream](null);
+			_callbacks[message.stream] = null;
 		}
 		else if (message.opCode === 6) {
 
-			var cb = _callback;
-			_callback = null;
-			cb(new Error(message.error));
+			_callbacks[message.stream](new Error(message.error));
+			_callbacks[message.stream] = null;
 		}
 
 		else {
 			throw new Error('Unknown opCode :' + message.opCode);
 		}
+	};
 
+	connection.on('data', function (chunk) {
+		console.log(chunk.toString('hex'));
+
+		if (oldChunk) {
+			chunk = Buffer.concat([oldChunk, chunk]);
+			oldChunk = null;
+		}
+
+		while (chunk.length > 0) {
+
+			if (chunk.length < 4) {
+				oldChunk = chunk;
+				return;
+			}
+
+			var length = chunk.readUInt32BE(0);
+
+			if (chunk.length - 4 < length) {
+				oldChunk = chunk;
+				return;
+			}
+
+			var frame = chunk.slice(4, length + 4);
+			onFrame(frame);
+
+			chunk = chunk.slice(length + 4);
+		}
 	});
 
 	connection.on('end', function () {
 		//console.log('connection end');
+		closed = true;
 	});
 
 	connection.on('error', function (error) {
-		//console.log('connection error');
+		console.log('connection error');
+		closed = true;
 
-		if (_callback) {
-			var cb = _callback;
-			_callback = null;
-			cb(error);
+		for (var i in _callbacks) {
+			if (_callbacks[i]) {
+				_callbacks[i](error);
+				_callbacks[i] = null;
+			}
 		}
 
 	});

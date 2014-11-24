@@ -6,6 +6,7 @@ exports.deserialize = function (buffer) {
 
 	var message = {};
 	message.opCode = r.readByte();
+	message.stream = r.readShort();
 
 	if (message.opCode === 1) {
 
@@ -39,13 +40,13 @@ exports.deserialize = function (buffer) {
 	}
 
 	return message;
-
 };
 
 exports.serialize = function (message) {
 
 	var w = new Writer();
 	w.writeByte(message.opCode);
+	w.writeShort(message.stream);
 
 	if (message.opCode === 1) {
 

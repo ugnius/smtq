@@ -14,28 +14,9 @@ smtq.connect(function (error) {
 	var text = (new Date()).toISOString();
 	var partition = String((Math.random() * 4) | 0);
 
-	//smtq.enqueue('app1', partition, Date.now(), text, function (error) {
-
-	//	if (error) {
-	//		throw error;
-	//	}
-
-	//	console.log('enqued: ' + partition + '|' + text);
-	//	smtq.close();
-
-	//});
-
 	repeat(enqueue, 10, function () {
 		smtq.close();
 	});
-
-
-	//smtq.enqueue('app1', '1', 2, '2', function () {
-	//	smtq.enqueue('app1', '1', 3, '3', function () {
-	//		smtq.enqueue('app1', '1', 1, '1', function () { });
-	//	});
-	//});
-	
 
 });
 
@@ -54,9 +35,11 @@ var repeat = function (fn, times, callback) {
 
 
 var enqueue = function (callback) {
-
 	var time = (Math.random() * 100) | 0;
+	var app = (Math.random() * 2) | 0;
 
-	smtq.enqueue('app1', '1', time, String(time), callback);
+	console.log(app, time);
+
+	smtq.enqueue('app1', String(app), time, String(time), callback);
 }
 

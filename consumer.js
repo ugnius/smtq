@@ -11,34 +11,35 @@ smtq.connect(function (error) {
 
 	console.log('connected to queue');
 
-	recursive(deque);
+	recursive(1, deque);
+	recursive(2, deque);
 
 
 });
 
-var recursive = function (fn) {
+var recursive = function (arg, fn) {
 
-	fn(function () {
-		recursive(fn);
+	fn(arg, function () {
+		recursive(arg, fn);
 	});
 
 };
 
-var deque = function (callback2) {
+var deque = function (arg, callback2) {
 
-	console.log('dequeue');
+	console.log(arg + ' dequeue');
 
 	smtq.dequeue('app1', function (error, message, callback) {
 		if (error) { throw error; }
 
-		console.log('dequed: ' + message.partition + '|' + message.content);
+		console.log(arg + ' dequed: ' + message.partition + '|' + message.content + ' ' + message.stream);
 
 		//callback(new Error('HUR DUR'));
 
 		setTimeout(function () {
 			callback(null);
 			callback2(null);
-		}, 100);
+		}, 1);
 
 	});
 };

@@ -6,11 +6,13 @@ var Client = function (address) {
 	this._address = address;
 	this._connection = null;
 
-	this._callback = null;
+	this._stream = 0;
+	this._callbacks = {};
 };
 
 Client.prototype.connect = function (callback) {
 	var client = this;
+	var oldChunk = null;
 
 	var connection = net.connect(8008, this._address, function () {
 		client._connection = connection;
@@ -26,36 +28,58 @@ Client.prototype.connect = function (callback) {
 
 	});
 
-	connection.on('data', function (data) {
-		
-		//console.log(data.toString('hex'));
+	connection.on('data', function (chunk) {
 
-		var length = data.readUInt32BE(0);
-		var message = serializer.deserialize(data.slice(4, length + 4));
-
-		//console.log(message);
-
-		if (message.opCode === 2) {
-
-			var cb = client._callback;
-			client._callback = null;
-			cb(null);
+		if (oldChunk) {
+			chunk = Buffer.concat([oldChunk, chunk]);
+			oldChunk = null;
 		}
-		else if (message.opCode === 4) {
-			var cb = client._callback;
-			client._callback = null;
-			cb(null, message, function (error) {
-				client.commit(error);
-			});
-		}
-		else {
-			throw new Error('Unknown opCode :' + message.opCode);
+
+		while (chunk.length > 0) {
+
+			if (chunk.length < 4) {
+				oldChunk = chunk;
+				return;
+			}
+
+			var length = chunk.readUInt32BE(0);
+
+			if (chunk.length - 4 < length) {
+				oldChunk = chunk;
+				return;
+			}
+
+			var frame = chunk.slice(4, length + 4);
+			client._onFrame(frame);
+
+			chunk = chunk.slice(length + 4);
 		}
 
 	});
 
-
 };
+
+
+Client.prototype._onFrame = function (data) {
+	var client = this;
+
+	var message = serializer.deserialize(data);
+
+	if (message.opCode === 2) {
+		client._callbacks[message.stream](null);
+		client._callbacks[message.stream] = null;
+	}
+	else if (message.opCode === 4) {
+		client._callbacks[message.stream](null, message, function (error) {
+			client.commit(error, message.stream);
+		});
+		client._callbacks[message.stream] = null;
+	}
+	else {
+		throw new Error('Unknown opCode :' + message.opCode);
+	}
+
+}
 
 
 Client.prototype.enqueue = function (app, partition, timestamp, message, callback) {
@@ -64,12 +88,9 @@ Client.prototype.enqueue = function (app, partition, timestamp, message, callbac
 		return callback(new Error('Not connected to queue'));
 	}
 
-	if (this._callback) {
-		return callback(new Error('There is already active request'));
-	}
-
 	var message = {
 		opCode: 1,
+		stream: this._stream++,
 		app: app,
 		partition: partition,
 		timestamp: timestamp,
@@ -78,7 +99,7 @@ Client.prototype.enqueue = function (app, partition, timestamp, message, callbac
 
 	var frame = serializer.serialize(message);
 
-	this._callback = callback;
+	this._callbacks[message.stream] = callback;
 	this._connection.write(frame);
 };
 
@@ -89,32 +110,30 @@ Client.prototype.dequeue = function (app, callback) {
 		return callback(new Error('Not connected to queue'));
 	}
 
-	if (this._callback) {
-		return callback(new Error('There is already active request'));
-	}
-
 	var message = {
 		opCode: 3,
+		stream: this._stream++,
 		app: app
 	};
 
 	var frame = serializer.serialize(message);
 
-	this._callback = callback;
+	this._callbacks[message.stream] = callback;
 	this._connection.write(frame);
-
 };
 
 
-Client.prototype.commit = function (error) {
+Client.prototype.commit = function (error, stream) {
 
 	if (!this._connection) {
 		return callback(new Error('Not connected to queue'));
 	}
 
-	var message = error ? 
-		{ opCode: 6, error: error.message } :
-		{ opCode: 5 };
+	var message = {
+		opCode: error ? 6 : 5,
+		stream: stream,
+		error: error ? error.message : null
+	};
 
 	var frame = serializer.serialize(message);
 
@@ -128,7 +147,6 @@ Client.prototype.close = function () {
 	}
 
 	this._connection.end();
-
 };
 
 
