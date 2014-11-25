@@ -14,7 +14,15 @@ smtq.connect(function (error) {
 	var text = (new Date()).toISOString();
 	var partition = String((Math.random() * 4) | 0);
 
-	repeat(enqueue, 10, function () {
+	//repeat(enqueue, 10, function () {
+	//	smtq.close();
+	//});
+
+	var noop = function() {};
+
+	smtq.enqueue('app1', '1', 2, '2', noop);
+	smtq.enqueue('app1', '1', 1, '1', noop);
+	smtq.enqueue('app1', '1', 3, '3', function () {
 		smtq.close();
 	});
 

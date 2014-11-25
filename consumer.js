@@ -34,12 +34,20 @@ var deque = function (arg, callback2) {
 
 		console.log(arg + ' dequed: ' + message.partition + '|' + message.content + ' ' + message.stream);
 
-		//callback(new Error('HUR DUR'));
+		if (message.content === '2') {
+			setTimeout(function () {
+				callback(new Error('bananas'));
+				callback2(null);
+			}, 10);
+		}
+		else {
+			setImmediate(function () {
+				callback(null);
+				callback2(null);
+			});
+		}
 
-		setImmediate(function () {
-			callback(null);
-			callback2(null);
-		});
+
 
 	});
 };

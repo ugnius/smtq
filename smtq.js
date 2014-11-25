@@ -72,23 +72,12 @@ var Partition = function (name, queue) {
 	this.busy = false;
 
 	this.freshTimeout = null;
+	this.errorTimeout = null;
 
 };
 
-Partition.prototype.isActive = function()
-{
-	return this.first !== null && !this.busy && !this.freshTimeout;
-}
-
-Partition.prototype.enqueue = function (message) {
-
+Partition.prototype._insertMessage = function (m) {
 	var partition = this;
-
-	var m = {
-		timestamp: message.timestamp,
-		content: message.message,
-		next: null
-	};
 
 	if (partition.first === null) {
 		partition.first = m;
@@ -112,12 +101,49 @@ Partition.prototype.enqueue = function (message) {
 			}
 		}
 	}
+};
+
+Partition.prototype._removeMessage = function (m) {
+	var partition = this;
+
+	if (partition.first === m) {
+		partition.first = m.next;
+		if (partition.last === m) {
+			partition.last = null;
+		}
+	}
+	else {
+		var i = partition.first;
+		while (i.next !== m) {
+			i = i.next;
+		}
+
+		i.next = m.next;
+		if (partition.last === m) {
+			partition.last = i;
+		}
+	}
+};
+
+Partition.prototype.isActive = function () {
+	return this.first !== null && !this.busy && !this.freshTimeout && !this.errorTimeout;
+};
+
+Partition.prototype.enqueue = function (message) {
+	var partition = this;
+
+	var m = {
+		timestamp: message.timestamp,
+		content: message.message,
+		failCount: 0,
+		next: null
+	};
+
+	partition._insertMessage(m);
 
 	if (this.freshTimeout) {
 		clearTimeout(this.freshTimeout);
 	}
-
-	var partition = this;
 
 	partition.freshTimeout = setTimeout(function () {
 		partition.freshTimeout = null;
@@ -137,34 +163,31 @@ Partition.prototype.dequeue = function (callback) {
 		partition: partition.name,
 		content: m.content
 	}, function (error) {
+		partition.busy = false;
+
 		if (error) {
 			if (error.message === 'Connection closed') {
-			} else {
+				partition.queue.serveQueue();
+			}
+			else {
 				console.log(error);
+
+				m.failCount++;
+				if (m.failCount >= 3) {
+					partition._removeMessage(m);
+				}
+
+				partition.errorTimeout = setTimeout(function () {
+					partition.errorTimeout = null;
+					setImmediate(partition.queue.serveQueue());
+				}, 1000);
 			}
 		}
 		else {
-			if (partition.first === m) {
-				partition.first = m.next;
-				if (partition.last === m) {
-					partition.last = null;
-				}
-			}
-			else {
-				var i = partition.first;
-				while (i.next !== m) {
-					i = i.next;
-				}
-
-				i.next = m.next;
-				if (partition.last === m) {
-					partition.last = i;
-				}
-			}
+			partition._removeMessage(m);
+			partition.queue.serveQueue();
 		}
 
-		partition.busy = false;
-		partition.queue.serveQueue();
 	});
 
 };
@@ -253,7 +276,6 @@ var onConnection = function (connection) {
 		}
 
 		while (chunk.length > 0) {
-
 			if (chunk.length < 4) {
 				oldChunk = chunk;
 				return;
