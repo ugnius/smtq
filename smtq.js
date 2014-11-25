@@ -1,7 +1,7 @@
 
 var net = require('net');
 var serializer = require('./serializer');
-
+var eOpCode = require('./eOpCode');
 
 
 var queues = {};
@@ -11,7 +11,6 @@ var Queue = function (name) {
 	this.partitions = {};
 
 	this.dequeue_queue = [];
-
 };
 
 Queue.prototype.enqueue = function (message) {
@@ -181,7 +180,7 @@ var onConnection = function (connection) {
 
 		var message = serializer.deserialize(data);
 
-		if (message.opCode === 1) {
+		if (message.opCode === eOpCode.ENQUEUE) {
 
 			var queue = queues[message.app];
 			if (!queue) {
@@ -192,7 +191,7 @@ var onConnection = function (connection) {
 			queue.enqueue(message);
 
 			var response = {
-				opCode: 2,
+				opCode: eOpCode.ENQUEUE_OK,
 				stream: message.stream,
 			};
 			var frame = serializer.serialize(response);
@@ -200,7 +199,7 @@ var onConnection = function (connection) {
 			connection.write(frame);
 
 		}
-		else if (message.opCode === 3) {
+		else if (message.opCode === eOpCode.DEQUEUE) {
 
 			var queue = queues[message.app];
 			if (!queue) {
@@ -218,7 +217,7 @@ var onConnection = function (connection) {
 				}
 
 				var response = {
-					opCode: 4,
+					opCode: eOpCode.MESSAGE,
 					stream: message.stream,
 					app: message.app,
 					partition: m.partition,
@@ -230,12 +229,12 @@ var onConnection = function (connection) {
 				connection.write(frame);
 			});
 		}
-		else if (message.opCode === 5) {
+		else if (message.opCode === eOpCode.MESSAGE_ACK) {
 
 			_callbacks[message.stream](null);
 			_callbacks[message.stream] = null;
 		}
-		else if (message.opCode === 6) {
+		else if (message.opCode === eOpCode.ERROR) {
 
 			_callbacks[message.stream](new Error(message.error));
 			_callbacks[message.stream] = null;

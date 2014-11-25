@@ -1,6 +1,7 @@
 
 var net = require('net');
 var serializer = require('./serializer');
+var eOpCode = require('./eOpCode');
 
 var Client = function (address) {
 	this._address = address;
@@ -65,11 +66,11 @@ Client.prototype._onFrame = function (data) {
 
 	var message = serializer.deserialize(data);
 
-	if (message.opCode === 2) {
+	if (message.opCode === eOpCode.ENQUEUE_OK) {
 		client._callbacks[message.stream](null);
 		client._callbacks[message.stream] = null;
 	}
-	else if (message.opCode === 4) {
+	else if (message.opCode === eOpCode.MESSAGE) {
 		client._callbacks[message.stream](null, message, function (error) {
 			client.commit(error, message.stream);
 		});
@@ -98,7 +99,7 @@ Client.prototype.enqueue = function (app, partition, timestamp, message, callbac
 	}
 
 	var message = {
-		opCode: 1,
+		opCode: eOpCode.ENQUEUE,
 		stream: this._nextStream(),
 		app: app,
 		partition: partition,
@@ -120,7 +121,7 @@ Client.prototype.dequeue = function (app, callback) {
 	}
 
 	var message = {
-		opCode: 3,
+		opCode: eOpCode.DEQUEUE,
 		stream: this._nextStream(),
 		app: app
 	};
@@ -139,7 +140,7 @@ Client.prototype.commit = function (error, stream) {
 	}
 
 	var message = {
-		opCode: error ? 6 : 5,
+		opCode: error ? eOpCode.ERROR : eOpCode.MESSAGE_ACK,
 		stream: stream,
 		error: error ? error.message : null
 	};

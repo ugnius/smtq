@@ -1,4 +1,5 @@
 
+var eOpCode = require('./eOpCode');
 
 exports.deserialize = function (buffer) {
 
@@ -8,30 +9,30 @@ exports.deserialize = function (buffer) {
 	message.opCode = r.readByte();
 	message.stream = r.readShort();
 
-	if (message.opCode === 1) {
+	if (message.opCode === eOpCode.ENQUEUE) {
 
 		message.app = r.readString();
 		message.partition = r.readString();
 		message.timestamp = r.readLong();
 		message.message = r.readString();
 	}
-	else if (message.opCode === 2) {
+	else if (message.opCode === eOpCode.ENQUEUE_OK) {
 
 	}
-	else if (message.opCode === 3) {
+	else if (message.opCode === eOpCode.DEQUEUE) {
 
 		message.app = r.readString();
 	}
-	else if (message.opCode === 4) {
+	else if (message.opCode === eOpCode.MESSAGE) {
 
 		message.app = r.readString();
 		message.partition = r.readString();
 		message.content = r.readString();
 	}
-	else if (message.opCode === 5) {
+	else if (message.opCode === eOpCode.MESSAGE_ACK) {
 
 	}
-	else if (message.opCode === 6) {
+	else if (message.opCode === eOpCode.ERROR) {
 
 		message.error = r.readString();
 	}
@@ -48,30 +49,30 @@ exports.serialize = function (message) {
 	w.writeByte(message.opCode);
 	w.writeShort(message.stream);
 
-	if (message.opCode === 1) {
+	if (message.opCode === eOpCode.ENQUEUE) {
 
 		w.writeString(message.app);
 		w.writeString(message.partition);
 		w.writeLong(message.timestamp);
 		w.writeString(message.message);
 	}
-	else if (message.opCode === 2) {
+	else if (message.opCode === eOpCode.ENQUEUE_OK) {
 
 	}
-	else if (message.opCode === 3) {
+	else if (message.opCode === eOpCode.DEQUEUE) {
 
 		w.writeString(message.app);
 	}
-	else if (message.opCode === 4) {
+	else if (message.opCode === eOpCode.MESSAGE) {
 
 		w.writeString(message.app);
 		w.writeString(message.partition);
 		w.writeString(message.content);
 	}
-	else if (message.opCode === 5) {
+	else if (message.opCode === eOpCode.MESSAGE_ACK) {
 
 	}
-	else if (message.opCode === 6) {
+	else if (message.opCode === eOpCode.ERROR) {
 
 		w.writeString(message.error);
 	}

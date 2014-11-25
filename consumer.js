@@ -32,7 +32,7 @@ var deque = function (arg, callback2) {
 	smtq.dequeue('app1', function (error, message, callback) {
 		if (error) { throw error; }
 
-		//console.log(arg + ' dequed: ' + message.partition + '|' + message.content + ' ' + message.stream);
+		console.log(arg + ' dequed: ' + message.partition + '|' + message.content + ' ' + message.stream);
 
 		//callback(new Error('HUR DUR'));
 

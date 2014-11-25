@@ -14,7 +14,7 @@ smtq.connect(function (error) {
 	var text = (new Date()).toISOString();
 	var partition = String((Math.random() * 4) | 0);
 
-	repeat(enqueue, 66000, function () {
+	repeat(enqueue, 10, function () {
 		smtq.close();
 	});
 
@@ -38,7 +38,7 @@ var enqueue = function (callback) {
 	var time = (Math.random() * 100) | 0;
 	var partition = (Math.random() * 1000) | 0;
 
-	//console.log(partition, time);
+	console.log(partition, time);
 
 	smtq.enqueue('app1', String(partition), time, String(time), callback);
 }
