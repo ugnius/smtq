@@ -11,20 +11,19 @@ smtq.connect(function (error) {
 
 	console.log('connected to queue');
 
-	var text = (new Date()).toISOString();
-	var partition = String((Math.random() * 4) | 0);
+	var connections = parseInt(process.argv[2], 10) | 1;
+	var messages = parseInt(parseInt(process.argv[3], 10)) | 10;
 
-	//repeat(enqueue, 10, function () {
-	//	smtq.close();
-	//});
+	var done = 0;
 
-	var noop = function() {};
-
-	smtq.enqueue('app1', '1', 2, '2', noop);
-	smtq.enqueue('app1', '1', 1, '1', noop);
-	smtq.enqueue('app1', '1', 3, '3', function () {
-		smtq.close();
-	});
+	for (var i = 0; i < connections; i++) {
+		repeat(enqueue, messages / connections, function () {
+			done++;
+			if ( done === connections ) {
+				smtq.close();
+			}
+		});
+	}
 
 });
 
@@ -46,7 +45,7 @@ var enqueue = function (callback) {
 	var time = (Math.random() * 100) | 0;
 	var partition = (Math.random() * 1000) | 0;
 
-	console.log(partition, time);
+	//console.log(partition, time);
 
 	smtq.enqueue('app1', String(partition), time, String(time), callback);
 }

@@ -11,6 +11,10 @@ var Queue = function (name) {
 	this.partitions = {};
 
 	this.dequeue_queue = [];
+	this.failedMessages = [];
+
+	this.en_count = new Average();
+	this.de_count = new Average();
 };
 
 Queue.prototype.enqueue = function (message) {
@@ -25,14 +29,12 @@ Queue.prototype.enqueue = function (message) {
 	setImmediate(this.serveQueue.bind(this));
 };
 
-
 Queue.prototype.dequeue = function (callback) {
 
 	this.dequeue_queue.push(callback);
 	setImmediate(this.serveQueue.bind(this));
 
 };
-
 
 Queue.prototype.serveQueue = function () {
 
@@ -67,6 +69,7 @@ var Partition = function (name, queue) {
 
 	this.first = null;
 	this.last = null;
+	this.count = 0;
 
 	this.queue = queue;
 	this.busy = false;
@@ -101,6 +104,9 @@ Partition.prototype._insertMessage = function (m) {
 			}
 		}
 	}
+
+	partition.count++;
+	partition.queue.en_count.add();
 };
 
 Partition.prototype._removeMessage = function (m) {
@@ -123,6 +129,10 @@ Partition.prototype._removeMessage = function (m) {
 			partition.last = i;
 		}
 	}
+	m.next = null;
+
+	partition.count--;
+	partition.queue.de_count.add();
 };
 
 Partition.prototype.isActive = function () {
@@ -175,6 +185,10 @@ Partition.prototype.dequeue = function (callback) {
 				m.failCount++;
 				if (m.failCount >= 3) {
 					partition._removeMessage(m);
+
+					m.error = error.message;
+					m.partition = partition.name;
+					partition.queue.failedMessages.push(m);
 				}
 
 				partition.errorTimeout = setTimeout(function () {
@@ -320,3 +334,48 @@ var server = net.createServer(onConnection);
 server.listen(8008, function () {
 	console.log('queue listening for connections on port 8008');
 });
+
+
+
+var Average = function () {
+	var c = new Array(5);
+	var i, number = 0;
+	this.average = 0;
+
+	for (i = 0; i < 5; i++) {
+		c[i] = 0;
+	}
+	i = 0
+
+	var that = this;
+
+	setInterval(function () {
+		number = number + c[i];
+		that.average = number / 5;
+		i = (i + 1) % 5;
+		number = number - c[i];
+		c[i] = 0;
+	}, 1000);
+
+	this.add = function () {
+		c[i]++;
+	}
+};
+
+
+setInterval(function () {
+
+	for (var name in queues) {
+		var queue = queues[name];
+
+		var count = 0;
+		for (var par in queue.partitions) {
+			var partition = queue.partitions[par];
+			count += partition.count;
+		}
+
+		console.log(name + ' ' + count + ' ' + queue.failedMessages.length + ' ' + queue.en_count.average + ' ' + queue.de_count.average);
+
+	}
+	console.log('----------');
+}, 1000);
