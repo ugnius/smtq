@@ -1,5 +1,4 @@
 
-
 var SmtqClient = require('./smtq_client');
 
 var smtq = new SmtqClient('localhost');
@@ -11,8 +10,9 @@ smtq.connect(function (error) {
 
 	console.log('connected to queue');
 
-	var connections = parseInt(process.argv[2], 10) | 1;
-	var messages = parseInt(parseInt(process.argv[3], 10)) | 10;
+	var connections = parseInt(process.argv[2], 10) || 1;
+	var messages = parseInt(process.argv[3], 10) || 10;
+	console.log(connections + ' connections ' + messages + ' messages');
 
 	var done = 0;
 
@@ -46,7 +46,6 @@ var enqueue = function (callback) {
 	var partition = (Math.random() * 1000) | 0;
 
 	//console.log(partition, time);
-
 	smtq.enqueue('app1', String(partition), time, String(time), callback);
 }
 
