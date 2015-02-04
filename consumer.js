@@ -11,7 +11,7 @@ smtq.connect(function (error) {
 
 	console.log('connected to queue');
 
-	var connections = parseInt(process.argv[2], 10) | 1;
+	var connections = parseInt(process.argv[2], 10) || 1;
 
 	for (var i = 0; i < connections; i++) {
 		recursive(1, deque);

@@ -1,8 +1,9 @@
 
 var net = require('net');
+var level = require('level');
+
 var serializer = require('./serializer');
 var eOpCode = require('./eOpCode');
-
 
 var queues = {};
 
@@ -10,23 +11,66 @@ var Queue = function (name) {
 	this.name = name;
 	this.partitions = {};
 
+	this.db = level('./db/' + name);
+
 	this.dequeue_queue = [];
 	this.failedMessages = [];
 
 	this.en_count = new Average();
 	this.de_count = new Average();
+
+	this.loadQueue(function () { });
 };
 
-Queue.prototype.enqueue = function (message) {
+Queue.prototype.loadQueue = function (callback) {
+
+	var queue = this;
+	var count = 0;
+
+	queue.db.createReadStream()
+	.on('error', function (error) {
+		console.log(error);
+	})
+	.on('data', function (data) {
+		var message = JSON.parse(data.value);
+		var partition = data.key.split(':')[0];
+		var index = parseInt(data.key.split(':')[1], 10);
+
+		var m = {
+			partition: partition,
+			timestamp: message.t,
+			message: message.m,
+			index: index,
+		};
+
+		queue.enqueue(m, function () { });
+
+		count++;
+	})
+	.on('end', function () {
+		console.log('Found ' + count + ' messages in ' + queue.name);
+		callback(null);
+	});
+
+};
+
+Queue.prototype.enqueue = function (message, callback) {
+	var queue = this;
 	var partition = this.partitions[message.partition];
 	if (!partition) {
 		partition = new Partition(message.partition, this);
 		this.partitions[message.partition] = partition;
 	}
 
-	partition.enqueue(message);
+	partition.enqueue(message, function (error) {
+		if (error) {
+			return callback(erorr);
+		}
 
-	setImmediate(this.serveQueue.bind(this));
+		callback(null);
+
+		setImmediate(queue.serveQueue.bind(queue));
+	});
 };
 
 Queue.prototype.dequeue = function (callback) {
@@ -70,6 +114,7 @@ var Partition = function (name, queue) {
 	this.first = null;
 	this.last = null;
 	this.count = 0;
+	this.index = 0;
 
 	this.queue = queue;
 	this.busy = false;
@@ -139,10 +184,11 @@ Partition.prototype.isActive = function () {
 	return this.first !== null && !this.busy && !this.freshTimeout && !this.errorTimeout;
 };
 
-Partition.prototype.enqueue = function (message) {
+Partition.prototype.enqueue = function (message, callback) {
 	var partition = this;
 
 	var m = {
+		index: message.index || partition.index++,
 		timestamp: message.timestamp,
 		content: message.message,
 		failCount: 0,
@@ -151,14 +197,22 @@ Partition.prototype.enqueue = function (message) {
 
 	partition._insertMessage(m);
 
-	if (this.freshTimeout) {
-		clearTimeout(this.freshTimeout);
-	}
+	partition.queue.db.put(partition.name + ':' + m.index, JSON.stringify({ m: m.content, t: m.timestamp }), function (error) {
+		if (error) {
+			return callback(error);
+		}
 
-	partition.freshTimeout = setTimeout(function () {
-		partition.freshTimeout = null;
-		setImmediate(partition.queue.serveQueue());
-	}, 1000);
+		callback(null);
+
+		if (this.freshTimeout) {
+			clearTimeout(this.freshTimeout);
+		}
+
+		partition.freshTimeout = setTimeout(function () {
+			partition.freshTimeout = null;
+			setImmediate(partition.queue.serveQueue());
+		}, 1000);
+	});
 
 };
 
@@ -186,6 +240,10 @@ Partition.prototype.dequeue = function (callback) {
 				if (m.failCount >= 3) {
 					partition._removeMessage(m);
 
+					partition.queue.db.del(partition.name + ':' + m.index, function (error) {
+						if (error) { cosnole.log('partition.queue.db.del : ' + error); }
+					});
+
 					m.error = error.message;
 					m.partition = partition.name;
 					partition.queue.failedMessages.push(m);
@@ -199,6 +257,11 @@ Partition.prototype.dequeue = function (callback) {
 		}
 		else {
 			partition._removeMessage(m);
+
+			partition.queue.db.del(partition.name + ':' + m.index, function (error) {
+				if (error) { cosnole.log('partition.queue.db.del : ' + error); }
+			});
+
 			partition.queue.serveQueue();
 		}
 
@@ -225,16 +288,19 @@ var onConnection = function (connection) {
 				queues[message.app] = queue;
 			}
 
-			queue.enqueue(message);
+			queue.enqueue(message, function (error) {
+				if (error) {
+					console.log('queue.enqueue: ' + error);
+				}
 
-			var response = {
-				opCode: eOpCode.ENQUEUE_OK,
-				stream: message.stream,
-			};
-			var frame = serializer.serialize(response);
+				var response = {
+					opCode: eOpCode.ENQUEUE_OK,
+					stream: message.stream,
+				};
+				var frame = serializer.serialize(response);
 
-			connection.write(frame);
-
+				connection.write(frame);
+			});
 		}
 		else if (message.opCode === eOpCode.DEQUEUE) {
 

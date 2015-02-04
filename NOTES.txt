@@ -16,7 +16,11 @@ requirements:
 needs scalability over cores and machines.
 needs message persistency. In case of process shutdown in memory data should be kept safe.
 needs availability. one process or computer fail should not interfere with queue work.
+
 single connection per thread with multiple numbered streams
+c# driver
+performance testing
+monitoring and statistics
 
 deliver at least once
 

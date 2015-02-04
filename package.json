@@ -10,5 +10,8 @@
     "queue"
   ],
   "author": "Ugnius",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "level": "^0.18.0"
+  }
 }
