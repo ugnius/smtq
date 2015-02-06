@@ -3,6 +3,10 @@ var eOpCode = require('./eOpCode');
 
 exports.deserialize = function (buffer) {
 
+	if (buffer.length < 3) {
+		throw new Error('frame must be at least 3 bytes. Now: ' + buffer.length);
+	}
+
 	var r = new Reader(buffer);
 
 	var message = {};
@@ -14,6 +18,7 @@ exports.deserialize = function (buffer) {
 		message.app = r.readString();
 		message.partition = r.readString();
 		message.timestamp = r.readLong();
+		console.log(message);
 		message.message = r.readString();
 	}
 	else if (message.opCode === eOpCode.ENQUEUE_OK) {
@@ -37,7 +42,7 @@ exports.deserialize = function (buffer) {
 		message.error = r.readString();
 	}
 	else {
-		throw new Error('Opcode ' + message.opCode + ' deserialize is not implemented');
+		throw new Error('Unknow opCode: ' + message.opCode);
 	}
 
 	return message;

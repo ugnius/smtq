@@ -3,32 +3,6 @@ var SmtqClient = require('./smtq_client');
 
 var smtq = new SmtqClient('localhost');
 
-smtq.connect(function (error) {
-	if (error) {
-		throw new Error('Failed to connect to queue');
-	}
-
-	console.log('connected to queue');
-
-	var connections = parseInt(process.argv[2], 10) || 1;
-	var messages = parseInt(process.argv[3], 10) || 10;
-	console.log(connections + ' connections ' + messages + ' messages');
-
-	var done = 0;
-
-	for (var i = 0; i < connections; i++) {
-		repeat(enqueue, messages / connections, function () {
-			done++;
-			if ( done === connections ) {
-				smtq.close();
-			}
-		});
-	}
-
-});
-
-
-
 var repeat = function (fn, times, callback) {
 
 	if (times <= 0) {
@@ -46,6 +20,31 @@ var enqueue = function (callback) {
 	var partition = (Math.random() * 1000) | 0;
 
 	//console.log(partition, time);
-	smtq.enqueue('app1', String(partition), time, String(time), callback);
+	smtq.enqueue('app1', String(partition), time, String(time), function (error) {
+		if (error) {
+			console.log(error);
+		}
+		
+		setImmediate(function () {
+			//setTimeout(function () {
+			callback(error);
+			//}, 100);
+		});
+	});
 }
 
+
+var connections = parseInt(process.argv[2], 10) || 1;
+var messages = parseInt(process.argv[3], 10) || 10;
+console.log(connections + ' connections ' + messages + ' messages');
+
+var done = 0;
+
+for (var i = 0; i < connections; i++) {
+	repeat(enqueue, messages / connections, function () {
+		done++;
+		if (done === connections) {
+			smtq.close();
+		}
+	});
+}

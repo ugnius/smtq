@@ -6,18 +6,29 @@ var eOpCode = require('./eOpCode');
 var Client = function (address) {
 	this._address = address;
 	this._connection = null;
+	this._close = false;
 
 	this._stream = 0;
 	this._callbacks = {};
+
+	this.connect(function () { });
 };
 
 Client.prototype.connect = function (callback) {
 	var client = this;
 	var oldChunk = null;
 
-	var connection = net.connect(8008, this._address, function () {
+	var connection = net.connect(8008, this._address);
+
+	connection.on('connect', function () {
+		console.log('connection.connect');
 		client._connection = connection;
 		callback(null);
+
+		if (client._close) {
+			client.close();
+		}
+
 	});
 
 	connection.on('error', function (error) {
@@ -58,6 +69,37 @@ Client.prototype.connect = function (callback) {
 
 	});
 
+	connection.on('timeout', function () {
+		console.log('connection.timeout');
+	});
+
+	connection.on('close', function () {
+		console.log('connection.close');
+		client._connection = null;
+
+		for (var stream in client._callbacks) {
+			var c = client._callbacks[stream];
+			if (c) {
+				c(new Error('Connection closed!'));
+				client._callbacks[stream] = null;
+			}
+		}
+		
+		if (!client._close) {
+			// TODO: reconnect delay interval increase
+			console.log('reconnect');
+
+			setTimeout(function () {
+				client.connect(function () { });
+			}, 1000);
+		}
+
+	});
+
+	connection.on('end', function () {
+		console.log('connection.end');
+	});
+
 };
 
 
@@ -71,8 +113,8 @@ Client.prototype._onFrame = function (data) {
 		client._callbacks[message.stream] = null;
 	}
 	else if (message.opCode === eOpCode.MESSAGE) {
-		client._callbacks[message.stream](null, message, function (error) {
-			client.commit(error, message.stream);
+		client._callbacks[message.stream](null, message, function (error, ackCallback) {
+			client.commit(error, message.stream, ackCallback);
 		});
 		client._callbacks[message.stream] = null;
 	}
@@ -82,7 +124,7 @@ Client.prototype._onFrame = function (data) {
 
 };
 
-
+// TODO reuse smaller number of streams. Use inactive stream queue?
 Client.prototype._nextStream = function () {
 	this._stream++;
 	if (this._stream > 65535) {
@@ -93,7 +135,30 @@ Client.prototype._nextStream = function () {
 
 
 Client.prototype.enqueue = function (app, partition, timestamp, message, callback) {
-	
+	var client = this;
+
+	client._enqueue(app, partition, timestamp, message, function (error) {
+		if (error) {
+			if (error.message === 'Not connected to queue') {
+
+				setTimeout(function () {
+					client.enqueue(app, partition, timestamp, message, callback);
+				}, 1000);
+
+			}
+			else {
+				callback(error);
+			}
+
+			return;
+		}
+
+		callback(null);
+	});
+};
+
+
+Client.prototype._enqueue = function (app, partition, timestamp, message, callback) {
 	if (!this._connection) {
 		return callback(new Error('Not connected to queue'));
 	}
@@ -109,13 +174,34 @@ Client.prototype.enqueue = function (app, partition, timestamp, message, callbac
 
 	var frame = serializer.serialize(message);
 
-	this._callbacks[message.stream] = callback;
 	this._connection.write(frame);
+	this._callbacks[message.stream] = callback;
 };
 
 
 Client.prototype.dequeue = function (app, callback) {
+	var client = this;
 
+	client._dequeue(app, function (error, message, ackCallback) {
+		if (error) {
+			if (error.message === 'Not connected to queue') {
+				setTimeout(function () {
+					client.dequeue(app, callback);
+				}, 1000);
+
+			}
+			else {
+				callback(error);
+			}
+
+			return;
+		}
+		callback(error, message, ackCallback);
+	});
+};
+
+
+Client.prototype._dequeue = function (app, callback) {
 	if (!this._connection) {
 		return callback(new Error('Not connected to queue'));
 	}
@@ -133,8 +219,7 @@ Client.prototype.dequeue = function (app, callback) {
 };
 
 
-Client.prototype.commit = function (error, stream) {
-
+Client.prototype.commit = function (error, stream, callback) {
 	if (!this._connection) {
 		return callback(new Error('Not connected to queue'));
 	}
@@ -148,15 +233,20 @@ Client.prototype.commit = function (error, stream) {
 	var frame = serializer.serialize(message);
 
 	this._connection.write(frame);
+
+	callback(null);
 };
 
 
 Client.prototype.close = function () {
-	if (!this._connection) {
-		return callback(new Error('Not connected to queue'));
+	this._close = true;
+
+	if (this._connection !== null) {
+
+		console.log('Client.close');
+		this._connection.end();
 	}
 
-	this._connection.end();
 };
 
 

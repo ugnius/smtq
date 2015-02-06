@@ -278,7 +278,18 @@ var onConnection = function (connection) {
 
 	var onFrame = function (data) {
 
-		var message = serializer.deserialize(data);
+		var message;
+		
+		try {
+			message = serializer.deserialize(data);
+		}
+		catch (error)
+		{
+			console.log(error.stack);
+			return;
+		}
+
+		console.log(message);
 
 		if (message.opCode === eOpCode.ENQUEUE) {
 
