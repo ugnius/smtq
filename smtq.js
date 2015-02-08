@@ -289,8 +289,6 @@ var onConnection = function (connection) {
 			return;
 		}
 
-		console.log(message);
-
 		if (message.opCode === eOpCode.ENQUEUE) {
 
 			var queue = queues[message.app];

@@ -18,7 +18,6 @@ exports.deserialize = function (buffer) {
 		message.app = r.readString();
 		message.partition = r.readString();
 		message.timestamp = r.readLong();
-		console.log(message);
 		message.message = r.readString();
 	}
 	else if (message.opCode === eOpCode.ENQUEUE_OK) {

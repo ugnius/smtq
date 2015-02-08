@@ -24,7 +24,7 @@ monitoring and statistics
 
 deliver at least once
 
-
+FIX: enqueue locks are held even if connection is closed!!!
 FIX: partitions are selected by name priority
 
 
